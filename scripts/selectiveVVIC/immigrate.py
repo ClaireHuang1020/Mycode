@@ -152,26 +152,6 @@ class Immigrate(object):
             }
             self.goods.Property.insert_one(vvic_size)
 
-    def loadFromJsonFile(self, filename):
-        with open(filename, "r") as f:
-            return json.load(f)
-
-    def loadCategoriesMapping(self, filename):
-        mapping = {}
-        with open(filename, "r") as f:
-            line = f.readline()
-            if line.strip():
-                data = line.strip().split("\t")
-                mapping[data[0]] = data[1]
-
-            while line:
-                line = f.readline()
-                if line.strip():
-                    data = line.strip().split("\t")
-                    mapping[data[0]] = data[1]
-
-        return mapping
-
     def get_item_id_cat_mapping(self):
         wb = load_workbook(filename=ITEM_VID_XLSX)
         ws = wb.active
@@ -709,7 +689,7 @@ class Immigrate(object):
                     self.updateListing(listingId, salePriceList, listPriceList,         # TODO
                                        region, sku_status_sum, product['status'])
 
-                    if (rusty_status <= 0) and (sku_status_sum > 0):
+                    if (rusty_status <= 0) and ((sku_status_sum > 0) and (product['status'] == 1)):
                         self.inc_store_cat_onlineCount()
 
             else:
@@ -783,7 +763,7 @@ class Immigrate(object):
                     self.updateListing(listingId, salePriceList, listPriceList,
                                        region, sku_status_sum, product['status'])
 
-                    if sku_status_sum > 0:
+                    if (sku_status_sum > 0) and (product['status'] == 1):
                          self.inc_store_cat_onlineCount()
             else:
                 print "Create listing spec failed. listingId: %d vvicId: %d" % (

@@ -40,13 +40,13 @@ class ImportTask:
         ))
         self.qchannel = self.qconn.channel()
 
-        for key, v in self.qtopics.iteritems():
+        for key, v in self.qtopics.items():
             self.qchannel.queue_declare(queue=v['queue'], durable=True)
 
     def queueVVICImmigrateTask(self, cat_item_vid, region):
         msg = {
             'item_vid': cat_item_vid[1].strip(),
-            'category_id': cat_item_vid[0].strip(),
+            'category_id': cat_item_vid[0],
             'region': region
         }
 
@@ -102,5 +102,5 @@ logging.basicConfig(level=_LOG_LEVEL)
 
 region = 1
 task = ImportTask(getAppConfig())
-task.generateVVICImmigrateTasks(region)
+#task.generateVVICImmigrateTasks(region)
 task.VVICImmigrateWorker()

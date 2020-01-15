@@ -11,6 +11,9 @@ import json
 import re
 import time
 from puanchen import HeraldMQ
+from openpyxl import load_workbook
+
+ITEM_VID_XLSX = "搜款网上新0108.xlsx"
 
 _VENDOR_ID_VVIC = 4
 _STORE_ID_VVIC = 6
@@ -90,14 +93,15 @@ class Immigrate(object):
 
         self.idsService = connection_pool.ClientPool(
             _DEF_IDS.IdsService,
-            "ids",
+            "10.20.183.186",
             _DNA_SERVICE_PORT,
             connection_class=connection_pool.ThriftPyCyClient
         )
 
         self.create_properties()
 
-        self.mq_host = config.get('mq/host')
+        #self.mq_host = config.get('mq/host')
+        self.mq_host = "10.20.25.177"
         self.mq_port = int(config.get('mq/port'))
         self.mq_vHost = config.get('mq/virtual-host')
         self.mq_user = config.get('mq/user')
@@ -174,7 +178,7 @@ class Immigrate(object):
             "propertyId": prop_id,
             "value.en": value
         }
-        return self.goods.PropertyValue.find(query)
+        return self.goods.PropertyValue.find_one(query)
 
     def create_prop_value(self, prop_id, value, external_id):
         pvid = self.idsService.getId('PropValue')
@@ -223,7 +227,7 @@ class Immigrate(object):
             spec_sizes = {}
             for sku in skus:
                 color_value = self.cook_color(sku['color'])
-                if color_value not in spec_colors.keys:
+                if color_value not in [*spec_colors]:
                     p_color = self.get_prop_value(vvicColorPropId, color_value)
                     if p_color:
                        spec_colors[color_value] = p_color["_id"]
@@ -232,33 +236,33 @@ class Immigrate(object):
                         spec_colors[color_value] = pvid_color
 
                 size_value = self.cook_size(sku['size'])
-                if size_value not in spec_sizes.keys:
+                if size_value not in [*spec_sizes]:
                     p_size = self.get_prop_value(vvicSizePropId, size_value)
                     if p_size:
                         spec_sizes[size_value] = p_size["_id"]
                     else:
-                        pvid_size = self.create_prop_value(vvicSizePropId, color_value, sku['color_id'])
-                        spec_colors[color_value] = pvid_size
+                        pvid_size = self.create_prop_value(vvicSizePropId, size_value, sku['size_id'])
+                        spec_sizes[size_value] = pvid_size
             
             for ss in spec_sizes:
                 size_pv = {
-                    "id": ss,
-                    "value": spec_colors[ss]
+                    "id": spec_sizes[ss],
+                    "value": ss
                 }
                 size['values'].append(size_pv)
 
             for sc in spec_colors:
                 color_pv = {
-                    "id": sc,
-                    "value": spec_colors[sc]
+                    "id": spec_colors[sc],
+                    "value": sc
                 }
                 color['values'].append(color_pv)
 
-            pvids = spec_sizes.values() + spec_colors.values()    # Pending
+            pvids = [*spec_sizes.values()] + [*spec_colors.values()]    # Pending
             self.update_prop_value_references(pvids)              # Pending
 
             specs = [color, size]
-        return specs
+        return specs, spec_colors, spec_sizes
 
     def tuneWeight(self, weight_type):
         return WEIGHT_MAPPING[weight_type]["weight"] * \
@@ -293,12 +297,9 @@ class Immigrate(object):
             status = 1
         return status
 
-    def generateSkuKey(self, color, size):
-        color_prop = self.vvicColors[color]
-        key_color = ":".join([str(color_prop['pid']), str(color_prop['pvid'])])
-
-        size_prop = self.vvicSizes[size]
-        key_size = ":".join([str(size_prop['pid']), str(size_prop['pvid'])])
+    def generateSkuKey(self, color, size, colors, sizes):
+        key_color = ":".join([str(vvicColorPropId), str(colors[color])])
+        key_size = ":".join([str(vvicSizePropId), str(sizes[size])])
 
         key = ";".join([key_color, key_size])
         return key
@@ -311,12 +312,12 @@ class Immigrate(object):
             images = images + listing_images
         return self.distinct_images(images)
 
-    def createSkuSpec(self, vvicSku, listingId, title, listing_images):
+    def createSkuSpec(self, vvicSku, listingId, title, listing_images, colors, sizes):
         skuId = self.idsService.getId('SpecOfSku')
         color = self.cook_color(vvicSku['color'])
         size = self.cook_size(vvicSku['size'])
         spec = ",".join([color, size])
-        key = self.generateSkuKey(color, size)
+        key = self.generateSkuKey(color, size, colors, sizes)
         status = self.tuneSkuStatus(vvicSku)
         images = self.cook_sku_images(vvicSku['color_img'], listing_images)
         sku_spec = {
@@ -333,9 +334,9 @@ class Immigrate(object):
             "key": key,
             "paymentMethodsMask": 1,
             "withBattery": 0,
-            "isCompressed": false,
-            "isPowder": false,
-            "withMagneto": false,
+            "isCompressed": False,
+            "isPowder": False,
+            "withMagneto": False,
             "storeCategoryId": VVIC_STORE_CATEGORY,
             "orderCount": 0,
             "realSales" : 0,
@@ -353,11 +354,11 @@ class Immigrate(object):
         }
         return self.goods.SpecOfSku.find_one(query)
 
-    def updateSkuSpec(self, rusty_sku_spec, vvicSku, listingId, title, listing_images):
+    def updateSkuSpec(self, rusty_sku_spec, vvicSku, listingId, title, listing_images, colors, sizes):
         color = self.cook_color(vvicSku['color'])
         size = self.cook_size(vvicSku['size'])
         spec = ",".join([color, size])
-        key = self.generateSkuKey(color, size)
+        key = self.generateSkuKey(color, size, colors, sizes)
         status = self.tuneSkuStatus(vvicSku)
         images = self.cook_sku_images(vvicSku['color_img'], listing_images)
         skuId = rusty_sku_spec['_id']
@@ -448,16 +449,16 @@ class Immigrate(object):
         }
         result = self.goods.SkuInventory.insert_one(sku_inventory)
         if not result.acknowledged:
-            print"Create sku inventory failed. sku_id: %d" % skuId
+            print("Create sku inventory failed. sku_id: %d" % skuId)
 
     def createSkus(self, skus, listingId, region,
-                   weight_type, title, listing_images, item_vid):
+                   weight_type, title, listing_images, item_vid, colors, sizes):
         salePriceList = []
         listPriceList = []
         status_sum = 0
         for sku in skus:
             skuId, status = self.createSkuSpec(sku, listingId, title,
-                                           listing_images)
+                                           listing_images, colors, sizes)
             status_sum += status
             if listing_images:
                 listing_images = None
@@ -471,8 +472,8 @@ class Immigrate(object):
 
                 self.createSkuInventory(skuId, listingId)
             else:
-                print "Create sku spec failed. listingId: %d ShoppoId: %d" % (
-                    listingId, item_vid)
+                print("Create sku spec failed. listingId: %d ShoppoId: %d" % (
+                    listingId, item_vid))
         return salePriceList, listPriceList, status_sum
 
     def offline_skus(self, listingId):
@@ -489,8 +490,8 @@ class Immigrate(object):
         return result.acknowledged
 
     def updateSkus(self, skus, listingId, region,
-                   weight_type, title, listing_images, item_vid):
-        if self.offline_skus():
+                   weight_type, title, listing_images, item_vid, colors, sizes):
+        if self.offline_skus(listingId):
             salePriceList = []
             listPriceList = []
             status_sum = 0
@@ -498,7 +499,7 @@ class Immigrate(object):
                 rusty_sku_spec = self.get_sku_spec_by_vendor_id(sku['sku_id'], listingId)
                 if rusty_sku_spec:
                     skuId, status = self.updateSkuSpec(rusty_sku_spec, sku, listingId, title,
-                                                   listing_images)
+                                                   listing_images, colors, sizes)
                     status_sum += status
                     if listing_images:            # Only first sku store listing image
                         listing_images = None
@@ -510,12 +511,12 @@ class Immigrate(object):
                         salePriceList.append(salePrice)
                         listPriceList.append(listPrice)
                     else:
-                        print "Update sku spec failed. listingId: %d VVICId: %d" % (
-                            listingId, item_vid)
+                        print("Update sku spec failed. listingId: %d VVICId: %d" % (
+                            listingId, item_vid))
 
                 else:
                     skuId, status = self.createSkuSpec(sku, listingId, title,
-                                                   listing_images)
+                                                   listing_images, colors, sizes)
                     status_sum += status
                     if listing_images:            # Only first sku stores listing image
                         listing_images = None
@@ -529,8 +530,8 @@ class Immigrate(object):
     
                         self.createSkuInventory(skuId, listingId)
                     else:
-                        print "Create sku spec failed. listingId: %d VVICId: %d" % (
-                            listingId, item_vid)
+                        print("Create sku spec failed. listingId: %d VVICId: %d" % (
+                            listingId, item_vid))
             return salePriceList, listPriceList, status_sum
         else:
             print("Update skus failed. listingId: %d" % listingId)
@@ -589,7 +590,8 @@ class Immigrate(object):
             "idByVendor": id_by_vendor
         }
         project = {
-            "_id": True
+            "_id": True,
+            "status": True
         }
 
         result = self.goods.SpecOfListing.find_one(query, project)
@@ -625,7 +627,7 @@ class Immigrate(object):
         }
         product = self.vvic.ProductDetail.find_one(query)
 
-        specs = self.getSpecs(product['sku_list'])
+        specs, colors, sizes = self.getSpecs(product['sku_list'])
 
         listing_images = self.cook_image_list(
             product['item_view_image'].split(',') +
@@ -635,7 +637,7 @@ class Immigrate(object):
 
         images = self.distinct_images(listing_images + color_images)
 
-        categoryId = int(category_id)
+        categoryId = category_id
         category_name = self.get_category_name(category_id)
 
         rusty_listing = self.get_listing_by_idByVendor(item_vid)
@@ -660,10 +662,10 @@ class Immigrate(object):
                 "regions": [region],
                 "categoryId": categoryId,
                 "categoryName": category_name
+                }
             }
-            result = self.goods.SpecOfListing.update_one(
-                listing_query, update
-                )
+
+            result = self.goods.SpecOfListing.update_one(listing_query, update)
 
             es_update_data = {
                 "status": 0,
@@ -684,7 +686,7 @@ class Immigrate(object):
                 if product['sku_list']:
                     salePriceList, listPriceList, sku_status_sum = self.updateSkus(
                         product['sku_list'], listingId, region, product['weight_type'],
-                        product['item_title'], listing_images, product['item_vid'])
+                        product['item_title'], listing_images, product['item_vid'], colors, sizes)
 
                     self.updateListing(listingId, salePriceList, listPriceList,         # TODO
                                        region, sku_status_sum, product['status'])
@@ -693,8 +695,8 @@ class Immigrate(object):
                         self.inc_store_cat_onlineCount()
 
             else:
-                print "Update listing spec failed. listingId: %d vvicId: %d" % (
-                    listingId, product['item_vid'])
+                print("Update listing spec failed. listingId: %d vvicId: %d" % (
+                    listingId, product['item_vid']))
 
         else:
             listingId = self.idsService.getId('SpecOfListing')
@@ -730,7 +732,7 @@ class Immigrate(object):
                 "updatedAt": datetime.datetime.utcnow()
             }
 
-            result = self.goods.SpecOfListing.insert_one(new_listing)
+            result_insert = self.goods.SpecOfListing.insert_one(new_listing)
             es_data = {
                         "_id" : listingId,
                         "status" : 0,
@@ -752,13 +754,13 @@ class Immigrate(object):
             insert_message_body = json.dumps({'operation': 'insert', 'data': es_data})
             self.send_queue_message(self.goods_to_es_queue, insert_message_body)
 
-            if result.acknowledged:
+            if result_insert.acknowledged:
                 self.inc_store_cat_listingCount() 
                 
                 if product['sku_list']:
                     salePriceList, listPriceList, sku_status_sum = self.createSkus(
                         product['sku_list'], listingId, region, product['weight_type'],
-                        product['item_title'], listing_images, product['item_vid'])
+                        product['item_title'], listing_images, product['item_vid'], colors, sizes)
     
                     self.updateListing(listingId, salePriceList, listPriceList,
                                        region, sku_status_sum, product['status'])
@@ -766,5 +768,5 @@ class Immigrate(object):
                     if (sku_status_sum > 0) and (product['status'] == 1):
                          self.inc_store_cat_onlineCount()
             else:
-                print "Create listing spec failed. listingId: %d vvicId: %d" % (
-                    listingId, product['item_vid'])
+                print("Create listing spec failed. listingId: %d vvicId: %d" % (
+                    listingId, product['item_vid']))

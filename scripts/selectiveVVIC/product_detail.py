@@ -25,12 +25,13 @@ ENDPOINT = 'https://api.vvic.com/api/item/detail/v1'
 LANG = "en"
 LOG_FILE = "log.txt"
 
-ITEM_VID_XLSX = "搜款网上新0108.xlsx"
+ITEM_VID_XLSX = "搜款网上新0228.xlsx"
 
 class ProductDetail(object):
     def __init__(self, config):
         uri = config.get('goods/mongo/uri')
-        dbname = 'devVVIC'
+        #dbname = 'devVVIC'
+        dbname = config.get('goods/vendor/vvic/db')
         self.db = MongoClient(
             uri, serverSelectionTimeoutMS=_MONGO_SELECT_TIMEOUT_MS
         )[dbname]

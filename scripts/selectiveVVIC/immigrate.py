@@ -13,7 +13,7 @@ import time
 from puanchen import HeraldMQ
 from openpyxl import load_workbook
 
-ITEM_VID_XLSX = "搜款网上新0108.xlsx"
+ITEM_VID_XLSX = "搜款网上新0228.xlsx"
 
 _VENDOR_ID_VVIC = 4
 _STORE_ID_VVIC = 6
@@ -93,7 +93,10 @@ class Immigrate(object):
 
         self.idsService = connection_pool.ClientPool(
             _DEF_IDS.IdsService,
+            # dev ids
             "10.20.183.186",
+            # prd ids
+            #"10.20.179.255",
             _DNA_SERVICE_PORT,
             connection_class=connection_pool.ThriftPyCyClient
         )

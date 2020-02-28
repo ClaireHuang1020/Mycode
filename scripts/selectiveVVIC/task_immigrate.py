@@ -102,5 +102,5 @@ logging.basicConfig(level=_LOG_LEVEL)
 
 region = 1
 task = ImportTask(getAppConfig())
-#task.generateVVICImmigrateTasks(region)
-task.VVICImmigrateWorker()
+task.generateVVICImmigrateTasks(region)
+#task.VVICImmigrateWorker()

@@ -13,17 +13,11 @@ from openpyxl import load_workbook
 _MONGO_SELECT_TIMEOUT_MS = 15000
 
 #沙箱环境
-# APP_ID = "1553212422315259"
-# APP_SECRET = "87249f59e43ea57b59d226432770e1d5"
-# ENDPOINT = 'https://preapi.vvic.com/api/item/detail/v1'
-# LANG = "cn"
-
-#生产环境
-APP_ID = "1662590533109404"
-APP_SECRET = "229226dc80a096a34988c0648a82b79a"
-ENDPOINT = 'https://api.vvic.com/api/item/detail/v1'
-LANG = "en"
-LOG_FILE = "log.txt"
+ APP_ID = "1553212422315259"
+ APP_SECRET = "87249f59e43ea57b59d226432770e1d5"
+ ENDPOINT = 'https://preapi.vvic.com/api/item/detail/v1'
+ LANG = "en"
+ LOG_FILE = "log.txt"
 
 ITEM_VID_XLSX = "搜款网上新0228.xlsx"
 
